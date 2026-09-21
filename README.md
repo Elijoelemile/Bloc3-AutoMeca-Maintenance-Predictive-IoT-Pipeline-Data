@@ -53,6 +53,9 @@ Toutes les sources convergent vers un **data lake unique et centralisé**
 y est déposée au format **Parquet**, adapté aux séries temporelles.
 
 > [!NOTE]
+> Le sujet du projet mentionne une **tendance de température** comme indicateur d'alerte précoce. Le dataset source réel (Kaggle *Microsoft Azure Predictive Maintenance*) ne contient pas de capteur de température — seulement volt, rotate, pressure, vibration. La **tendance de pression** a été retenue comme indicateur de substitution réel et mesurable, cohérente avec le principe de ce projet de ne jamais fabriquer de donnée absente du dataset (même traitement que les thermographies ou la dimension `opérateur`, ci-dessous).
+
+> [!NOTE]
 > Le pipeline ne crée jamais les tables de destination (staging, datamart, télémétrie) — elles sont créées séparément via les scripts du dépôt [Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data](https://github.com/<user>/Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data), en amont, comme prérequis documenté (pas de dépendance technique entre les deux dépôts). **Prérequis complémentaires, propres à ce dépôt**, à exécuter une seule fois juste après le DDL du Bloc 2 : `transform/00_add_missing_constraints.sql` (contraintes d'unicité manquantes, nécessaires pour que le pipeline soit réellement idempotent — `ON CONFLICT DO NOTHING`), `transform/01_add_fait_telemetrie_jour.sql` (nouvelle table de faits pour la consolidation quotidienne), `quality/00_add_quarantine_table.sql` (table ClickHouse de quarantaine), `privacy/00_widen_matricule_column.sql` (colonne élargie pour stocker un pseudonyme complet) et `dashboard/00_add_ingestion_timestamp.sql` (horodatage d'ingestion, nécessaire pour la métrique de latence).
 
 > [!IMPORTANT]
