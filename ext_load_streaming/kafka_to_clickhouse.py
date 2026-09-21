@@ -20,6 +20,11 @@ crash entre les deux, le lot peut etre rejoue et donc duplique — la
 table brute MergeTree du Bloc 2 ne deduplique pas. Acceptable pour ce
 POC ; une exactement-une-fois necessiterait une cle de deduplication
 (ReplacingMergeTree) hors perimetre de cette iteration.
+
+Avant chargement, chaque lot passe par la regle de qualite "valeur hors
+plage" (quality/validation_rules.py, page 2 du diagramme) : les mesures
+suspectes sont isolees dans automeca.telemetrie_quarantaine plutot que
+chargees normalement — jamais fusionnees avec les donnees validees.
 """
 import io
 import tempfile
@@ -36,6 +41,7 @@ from common.config import ClickHouseConfig, KafkaConfig, load_clickhouse_config,
 from common.logging_config import get_logger
 from common.object_storage import upload_file
 from ext_load_streaming.mqtt_to_kafka import MalformedMessageError, SensorMessage, parse_sensor_message
+from quality.validation_rules import partition_messages
 
 logger = get_logger(__name__)
 
@@ -44,6 +50,8 @@ BATCH_SIZE = 500
 BATCH_INTERVAL_SECONDS = 10.0
 CLICKHOUSE_TABLE = "automeca.telemetrie"
 CLICKHOUSE_COLUMNS = ["machine_id", "datetime_mes", "volt", "rotate", "pressure", "vibration"]
+QUARANTINE_TABLE = "automeca.telemetrie_quarantaine"
+QUARANTINE_COLUMNS = CLICKHOUSE_COLUMNS + ["motif"]
 
 
 def parse_kafka_message(payload: bytes) -> SensorMessage:
@@ -72,8 +80,10 @@ def messages_to_parquet_bytes(messages: list[SensorMessage]) -> bytes:
 
 
 def build_clickhouse_rows(messages: list[SensorMessage]) -> list[tuple]:
+    # datetime_mes est une chaine ISO (issue du JSON Kafka) : ClickHouse
+    # (colonne DateTime) exige un vrai objet datetime, pas une chaine.
     return [
-        (m.machine_id, m.datetime_mes, m.volt, m.rotate, m.pressure, m.vibration)
+        (m.machine_id, datetime.fromisoformat(m.datetime_mes), m.volt, m.rotate, m.pressure, m.vibration)
         for m in messages
     ]
 
@@ -97,6 +107,29 @@ def flush_batch(messages: list[SensorMessage], clickhouse_client, batch_timestam
     clickhouse_client.insert(CLICKHOUSE_TABLE, build_clickhouse_rows(messages), column_names=CLICKHOUSE_COLUMNS)
     logger.info("Lot charge : %d mesures -> %s + table %s", len(messages), object_key, CLICKHOUSE_TABLE)
     return object_key
+
+
+def flush_quarantine(quarantined: list[tuple[SensorMessage, str]], clickhouse_client) -> None:
+    """Isole les mesures rejetees dans automeca.telemetrie_quarantaine — jamais fusionnees avec la table brute."""
+    if not quarantined:
+        return
+    rows = [
+        (m.machine_id, datetime.fromisoformat(m.datetime_mes), m.volt, m.rotate, m.pressure, m.vibration, motif)
+        for m, motif in quarantined
+    ]
+    clickhouse_client.insert(QUARANTINE_TABLE, rows, column_names=QUARANTINE_COLUMNS)
+    logger.warning("Lot mis en quarantaine : %d mesures", len(rows))
+
+
+def process_batch(messages: list[SensorMessage], clickhouse_client, batch_timestamp: datetime | None = None) -> str | None:
+    """Applique la regle "valeur hors plage" (Validation & Quarantaine, page 2)
+    avant chargement. Retourne la cle objet du lot valide depose, ou None si
+    le lot entier a ete mis en quarantaine."""
+    valides, quarantaine = partition_messages(messages)
+    flush_quarantine(quarantaine, clickhouse_client)
+    if not valides:
+        return None
+    return flush_batch(valides, clickhouse_client, batch_timestamp=batch_timestamp)
 
 
 def get_clickhouse_client(config: ClickHouseConfig | None = None):
@@ -139,7 +172,7 @@ def run(kafka_config: KafkaConfig | None = None) -> None:
 
             elapsed = (now - last_flush).total_seconds()
             if buffer and (len(buffer) >= BATCH_SIZE or elapsed >= BATCH_INTERVAL_SECONDS):
-                flush_batch(buffer, clickhouse_client, batch_timestamp=now)
+                process_batch(buffer, clickhouse_client, batch_timestamp=now)
                 consumer.commit(asynchronous=False)
                 buffer = []
                 last_flush = now

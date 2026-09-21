@@ -52,7 +52,7 @@ Toutes les sources convergent vers un **data lake unique et centralisé**
 y est déposée au format **Parquet**, adapté aux séries temporelles.
 
 > [!NOTE]
-> Le pipeline ne crée jamais les tables de destination (staging, datamart, télémétrie) — elles sont créées séparément via les scripts du dépôt [Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data](https://github.com/<user>/Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data), en amont, comme prérequis documenté (pas de dépendance technique entre les deux dépôts). **Second prérequis, propre à ce dépôt** : exécuter `transform/00_add_missing_constraints.sql` juste après le DDL du Bloc 2 — il ajoute les contraintes d'unicité manquantes, nécessaires pour que le pipeline soit réellement idempotent (`ON CONFLICT DO NOTHING`).
+> Le pipeline ne crée jamais les tables de destination (staging, datamart, télémétrie) — elles sont créées séparément via les scripts du dépôt [Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data](https://github.com/<user>/Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data), en amont, comme prérequis documenté (pas de dépendance technique entre les deux dépôts). **Prérequis complémentaires, propres à ce dépôt**, à exécuter une seule fois juste après le DDL du Bloc 2 : `transform/00_add_missing_constraints.sql` (contraintes d'unicité manquantes, nécessaires pour que le pipeline soit réellement idempotent — `ON CONFLICT DO NOTHING`), `transform/01_add_fait_telemetrie_jour.sql` (nouvelle table de faits pour la consolidation quotidienne) et `quality/00_add_quarantine_table.sql` (table ClickHouse de quarantaine).
 
 > [!IMPORTANT]
 > La vue matérialisée ClickHouse se recalcule automatiquement à chaque insertion — RMS et tendance restent à jour en quelques secondes, **sans moteur de traitement de flux externe** (pas de cluster Spark Streaming à opérer). Le calcul temps réel reste ainsi entièrement en SQL, cohérent avec le reste du pipeline ELT.
@@ -93,12 +93,14 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 │   ├── materialized_view_telemetrie.sql  # RMS + tendance par fenêtre 1 min (testée sur ClickHouse réel)
 │   ├── 01_add_fait_telemetrie_jour.sql   # nouvelle table de faits (grain machine x jour), prérequis
 │   └── consolidation.py                  # jointure télémétrie ClickHouse + datamart PostgreSQL (testée de bout en bout)
-├── quality/                 # validation + quarantaine (a venir)
+├── quality/                 # validation + quarantaine
+│   ├── validation_rules.py     # regle par mesure (hors plage) + regle periodique (capteur silencieux)
+│   └── 00_add_quarantine_table.sql  # table ClickHouse dediee, prerequis
 ├── privacy/                 # RGPD — pseudonymisation (a venir)
 ├── orchestration/            # DAG Airflow (a venir)
 ├── dashboard/                 # config Grafana (a venir)
 ├── tests/
-│   ├── unit/                  # 26 tests, mocks — aucune connexion reelle
+│   ├── unit/                  # 37 tests, mocks — aucune connexion reelle
 │   └── functional/            # (a venir)
 ├── .env.example
 ├── .gitignore
@@ -119,8 +121,9 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`diagram/`** — page 1 : le pipeline ELT unique décliné à deux cadences (flux temps réel capteurs → Kafka → ClickHouse → vue matérialisée → alerte précoce ; flux batch GMAO/ERP → Object Storage → staging → datamart → consolidation) ; page 2 : validation/quarantaine des données, tableau de bord de supervision, pseudonymisation RGPD et traçabilité
 - **`common/`** — utilitaires partagés par tout le pipeline : configuration (secrets via variables d'environnement, jamais en dur), logs structurés, client Object Storage
 - **`extraction/`** — flux batch : récupération des 4 fichiers GMAO/ERP (Kaggle API) vers le data lake, puis chargement brut vers le staging PostgreSQL — idempotent
-- **`ext_load_streaming/`** — flux temps réel : pont MQTT → Kafka (structurel, aucune validation métier), puis consommateur Kafka qui charge par lots la télémétrie brute dans Object Storage (Parquet) et la table ClickHouse `automeca.telemetrie` — offset Kafka commité seulement après succès des deux écritures
+- **`ext_load_streaming/`** — flux temps réel : pont MQTT → Kafka (structurel, aucune validation métier), puis consommateur Kafka qui applique les règles de `quality/` avant de charger par lots la télémétrie valide dans Object Storage (Parquet) et la table ClickHouse `automeca.telemetrie` — offset Kafka commité seulement après succès des écritures
 - **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2), la transformation staging → datamart (testée contre un vrai PostgreSQL, fusion correcte et idempotence confirmées), la vue matérialisée ClickHouse RMS vibratoire + tendance de pression par fenêtre d'1 minute (testée contre un vrai ClickHouse), et la consolidation quotidienne — nouvelle table de faits `datamart.fait_telemetrie_jour` (grain machine × jour, dimensions `dim_machine`/`dim_date` réutilisées) alimentée par un script Python qui joint ClickHouse et PostgreSQL (jointure cross-moteur impossible nativement en SQL sans connecteur fragile) ; testée de bout en bout contre un vrai PostgreSQL + ClickHouse : valeurs recalculées vérifiées manuellement, idempotence confirmée sur une deuxième exécution
-- **`tests/unit/`** — 26 tests couvrant l'extraction, le chargement staging, le pipeline temps réel et la consolidation, sans connexion réelle (mocks)
+- **`quality/`** — deux contrôles de nature différente (voir page 2 du diagramme) : **valeur hors plage** (par mesure — bornes calculées sur les 876 100 mesures réelles du dataset Kaggle, marge de sécurité pour ne jamais rejeter une vraie valeur historique ; mesure suspecte isolée dans `automeca.telemetrie_quarantaine`, jamais fusionnée) et **capteur silencieux** (contrôle périodique — pas de message à mettre en quarantaine quand aucune donnée n'arrive ; fonction prête, câblée plus tard par `orchestration/`) ; testé de bout en bout contre un vrai ClickHouse — a aussi révélé et corrigé un bug de typage (`datetime_mes` inséré comme chaîne au lieu d'un vrai `datetime`, jamais détecté par les tests mockés)
+- **`tests/unit/`** — 37 tests couvrant l'extraction, le chargement staging, le pipeline temps réel, la consolidation et la qualité des données, sans connexion réelle (mocks)
 
-Composants restants (quality, privacy, orchestration, dashboard) : à venir.
+Composants restants (privacy, orchestration, dashboard) : à venir.

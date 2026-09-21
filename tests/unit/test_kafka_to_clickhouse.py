@@ -15,11 +15,15 @@ import pytest
 from ext_load_streaming.kafka_to_clickhouse import (
     CLICKHOUSE_COLUMNS,
     CLICKHOUSE_TABLE,
+    QUARANTINE_COLUMNS,
+    QUARANTINE_TABLE,
     build_clickhouse_rows,
     flush_batch,
+    flush_quarantine,
     messages_to_parquet_bytes,
     object_key_for_batch,
     parse_kafka_message,
+    process_batch,
 )
 from ext_load_streaming.mqtt_to_kafka import MalformedMessageError, SensorMessage
 
@@ -67,8 +71,8 @@ def test_build_clickhouse_rows_matches_column_order():
     rows = build_clickhouse_rows(SAMPLE_MESSAGES)
 
     assert rows == [
-        (1, "2026-01-15T06:00:00", 176.2, 418.5, 113.0, 45.0),
-        (2, "2026-01-15T06:00:00", 170.1, 400.0, 110.5, 40.2),
+        (1, datetime(2026, 1, 15, 6, 0, 0), 176.2, 418.5, 113.0, 45.0),
+        (2, datetime(2026, 1, 15, 6, 0, 0), 170.1, 400.0, 110.5, 40.2),
     ]
 
 
@@ -89,3 +93,50 @@ def test_flush_batch_uploads_to_datalake_and_inserts_clickhouse():
     assert args[0] == CLICKHOUSE_TABLE
     assert args[1] == build_clickhouse_rows(SAMPLE_MESSAGES)
     assert kwargs["column_names"] == CLICKHOUSE_COLUMNS
+
+
+def test_flush_quarantine_inserts_with_motif_column():
+    clickhouse_client = MagicMock()
+    message = SensorMessage(3, "2026-01-15T06:00:00", 999.0, 418.5, 113.0, 45.0)
+
+    flush_quarantine([(message, "volt_hors_plage")], clickhouse_client)
+
+    clickhouse_client.insert.assert_called_once()
+    args, kwargs = clickhouse_client.insert.call_args
+    assert args[0] == QUARANTINE_TABLE
+    assert args[1] == [(3, datetime(2026, 1, 15, 6, 0, 0), 999.0, 418.5, 113.0, 45.0, "volt_hors_plage")]
+    assert kwargs["column_names"] == QUARANTINE_COLUMNS
+
+
+def test_flush_quarantine_skips_empty():
+    clickhouse_client = MagicMock()
+
+    flush_quarantine([], clickhouse_client)
+
+    clickhouse_client.insert.assert_not_called()
+
+
+def test_process_batch_routes_valid_and_quarantined_separately():
+    clickhouse_client = MagicMock()
+    message_invalide = SensorMessage(3, "2026-01-15T06:00:00", 999.0, 418.5, 113.0, 45.0)
+    batch_timestamp = datetime(2026, 1, 15, 6, 30, 45, tzinfo=timezone.utc)
+
+    with patch("ext_load_streaming.kafka_to_clickhouse.upload_file"):
+        object_key = process_batch(SAMPLE_MESSAGES + [message_invalide], clickhouse_client, batch_timestamp=batch_timestamp)
+
+    assert object_key is not None
+    # 2 inserts ClickHouse : un pour le lot valide (table brute), un pour la quarantaine
+    assert clickhouse_client.insert.call_count == 2
+    tables_called = {call.args[0] for call in clickhouse_client.insert.call_args_list}
+    assert tables_called == {CLICKHOUSE_TABLE, QUARANTINE_TABLE}
+
+
+def test_process_batch_returns_none_when_entire_batch_quarantined():
+    clickhouse_client = MagicMock()
+    message_invalide = SensorMessage(3, "2026-01-15T06:00:00", 999.0, 418.5, 113.0, 45.0)
+
+    result = process_batch([message_invalide], clickhouse_client, batch_timestamp=datetime.now(timezone.utc))
+
+    assert result is None
+    clickhouse_client.insert.assert_called_once()
+    assert clickhouse_client.insert.call_args.args[0] == QUARANTINE_TABLE
