@@ -83,16 +83,19 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 ├── extraction/             # flux batch — Extract + Load
 │   ├── extract_kaggle.py       # Kaggle API -> data lake (GMAO/ERP)
 │   └── load_staging.py         # data lake -> staging PostgreSQL
-├── ext_load_streaming/      # flux temps réel — Extract + Load (a venir)
+├── ext_load_streaming/      # flux temps réel — Extract + Load
+│   ├── mqtt_to_kafka.py         # capteurs MQTT -> Kafka (Extract)
+│   └── kafka_to_clickhouse.py   # Kafka -> data lake (Parquet) + ClickHouse (Load, par lots)
 ├── transform/               # Transform — requêtes réelles
 │   ├── 00_add_missing_constraints.sql  # prérequis, complément au DDL Bloc 2
-│   └── transform_datamart.sql          # fusion staging -> datamart (testée, idempotente)
+│   ├── transform_datamart.sql          # fusion staging -> datamart (testée, idempotente)
+│   └── materialized_view_telemetrie.sql  # RMS + tendance (a venir)
 ├── quality/                 # validation + quarantaine (a venir)
 ├── privacy/                 # RGPD — pseudonymisation (a venir)
 ├── orchestration/            # DAG Airflow (a venir)
 ├── dashboard/                 # config Grafana (a venir)
 ├── tests/
-│   ├── unit/                  # 7 tests, mocks — aucune connexion reelle
+│   ├── unit/                  # 20 tests, mocks — aucune connexion reelle
 │   └── functional/            # (a venir)
 ├── .env.example
 ├── .gitignore
@@ -113,7 +116,8 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`diagram/`** — page 1 : le pipeline ELT unique décliné à deux cadences (flux temps réel capteurs → Kafka → ClickHouse → vue matérialisée → alerte précoce ; flux batch GMAO/ERP → Object Storage → staging → datamart → consolidation) ; page 2 : validation/quarantaine des données, tableau de bord de supervision, pseudonymisation RGPD et traçabilité
 - **`common/`** — utilitaires partagés par tout le pipeline : configuration (secrets via variables d'environnement, jamais en dur), logs structurés, client Object Storage
 - **`extraction/`** — flux batch : récupération des 4 fichiers GMAO/ERP (Kaggle API) vers le data lake, puis chargement brut vers le staging PostgreSQL — idempotent
+- **`ext_load_streaming/`** — flux temps réel : pont MQTT → Kafka (structurel, aucune validation métier), puis consommateur Kafka qui charge par lots la télémétrie brute dans Object Storage (Parquet) et la table ClickHouse `automeca.telemetrie` — offset Kafka commité seulement après succès des deux écritures
 - **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2) et la transformation réelle staging → datamart ; testée contre un vrai PostgreSQL (fusion correcte, idempotence confirmée)
-- **`tests/unit/`** — 7 tests couvrant l'extraction et le chargement staging, sans connexion réelle (mocks)
+- **`tests/unit/`** — 20 tests couvrant l'extraction, le chargement staging et le pipeline temps réel, sans connexion réelle (mocks)
 
-Composants restants (ext_load_streaming, quality, privacy, orchestration, dashboard) : à venir.
+Composants restants (vue matérialisée ClickHouse, quality, privacy, orchestration, dashboard) : à venir.
