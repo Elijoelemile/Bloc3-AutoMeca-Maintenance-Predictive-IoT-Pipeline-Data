@@ -51,7 +51,7 @@ Toutes les sources convergent vers un **data lake unique et centralisé**
 y est déposée au format **Parquet**, adapté aux séries temporelles.
 
 > [!NOTE]
-> Le pipeline ne crée jamais les tables de destination (staging, datamart, télémétrie) — elles sont créées séparément via les scripts du dépôt [Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data](https://github.com/<user>/Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data), en amont, comme prérequis documenté (pas de dépendance technique entre les deux dépôts). **Second prérequis, propre à ce dépôt** : exécuter `sql/00_add_missing_constraints.sql` juste après le DDL du Bloc 2 — il ajoute les contraintes d'unicité manquantes, nécessaires pour que le pipeline soit réellement idempotent (`ON CONFLICT DO NOTHING`).
+> Le pipeline ne crée jamais les tables de destination (staging, datamart, télémétrie) — elles sont créées séparément via les scripts du dépôt [Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data](https://github.com/<user>/Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data), en amont, comme prérequis documenté (pas de dépendance technique entre les deux dépôts). **Second prérequis, propre à ce dépôt** : exécuter `transform/00_add_missing_constraints.sql` juste après le DDL du Bloc 2 — il ajoute les contraintes d'unicité manquantes, nécessaires pour que le pipeline soit réellement idempotent (`ON CONFLICT DO NOTHING`).
 
 > [!IMPORTANT]
 > La vue matérialisée ClickHouse se recalcule automatiquement à chaque insertion — RMS et tendance restent à jour en quelques secondes, **sans moteur de traitement de flux externe** (pas de cluster Spark Streaming à opérer). Le calcul temps réel reste ainsi entièrement en SQL, cohérent avec le reste du pipeline ELT.
@@ -83,8 +83,8 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 ├── extraction/             # flux batch — Extract + Load
 │   ├── extract_kaggle.py       # Kaggle API -> data lake (GMAO/ERP)
 │   └── load_staging.py         # data lake -> staging PostgreSQL
-├── streaming/              # flux temps réel — Extract + Load (a venir)
-├── sql/                    # Transform — requêtes réelles
+├── ext_load_streaming/      # flux temps réel — Extract + Load (a venir)
+├── transform/               # Transform — requêtes réelles
 │   ├── 00_add_missing_constraints.sql  # prérequis, complément au DDL Bloc 2
 │   └── transform_datamart.sql          # fusion staging -> datamart (testée, idempotente)
 ├── quality/                 # validation + quarantaine (a venir)
@@ -113,7 +113,7 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`diagram/`** — page 1 : le pipeline ELT unique décliné à deux cadences (flux temps réel capteurs → Kafka → ClickHouse → vue matérialisée → alerte précoce ; flux batch GMAO/ERP → Object Storage → staging → datamart → consolidation) ; page 2 : validation/quarantaine des données, tableau de bord de supervision, pseudonymisation RGPD et traçabilité
 - **`common/`** — utilitaires partagés par tout le pipeline : configuration (secrets via variables d'environnement, jamais en dur), logs structurés, client Object Storage
 - **`extraction/`** — flux batch : récupération des 4 fichiers GMAO/ERP (Kaggle API) vers le data lake, puis chargement brut vers le staging PostgreSQL — idempotent
-- **`sql/`** — le prérequis de contraintes (complément au DDL du Bloc 2) et la transformation réelle staging → datamart ; testée contre un vrai PostgreSQL (fusion correcte, idempotence confirmée)
+- **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2) et la transformation réelle staging → datamart ; testée contre un vrai PostgreSQL (fusion correcte, idempotence confirmée)
 - **`tests/unit/`** — 7 tests couvrant l'extraction et le chargement staging, sans connexion réelle (mocks)
 
-Composants restants (streaming, quality, privacy, orchestration, dashboard) : à venir.
+Composants restants (ext_load_streaming, quality, privacy, orchestration, dashboard) : à venir.

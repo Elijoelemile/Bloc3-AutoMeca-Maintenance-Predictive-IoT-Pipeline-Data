@@ -1,4 +1,4 @@
-"""Tests unitaires — streaming/mqtt_to_kafka.py
+"""Tests unitaires — ext_load_streaming/mqtt_to_kafka.py
 
 Aucune vraie connexion MQTT/Kafka : on teste le parsing et le
 comportement du handler en isolation.
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from streaming.mqtt_to_kafka import (
+from ext_load_streaming.mqtt_to_kafka import (
     MalformedMessageError,
     SensorMessage,
     make_on_message,

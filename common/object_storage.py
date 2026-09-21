@@ -3,7 +3,7 @@
 OVHcloud Object Storage est compatible S3 : on utilise boto3 comme
 pour n'importe quel stockage S3. Ce module est le point d'entree
 unique utilise a la fois par le flux batch (extraction/) et le flux
-temps reel (streaming/) — coherent avec le data lake centralise et
+temps reel (ext_load_streaming/) — coherent avec le data lake centralise et
 partage du diagramme.
 """
 import boto3

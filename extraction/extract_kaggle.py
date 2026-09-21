@@ -3,7 +3,7 @@
 Recupere les 4 fichiers "evenements/referentiel" du dataset Kaggle
 (machines, erreurs, pannes, maintenances) et les depose bruts dans le
 data lake centralise (Object Storage). N'inclut PAS la telemetrie :
-celle-ci est traitee par le flux temps reel (streaming/), pas par
+celle-ci est traitee par le flux temps reel (ext_load_streaming/), pas par
 l'extraction batch — voir la separation des deux couloirs au Bloc 3.
 
 Idempotent : peut etre relance sans effet de bord (chaque execution

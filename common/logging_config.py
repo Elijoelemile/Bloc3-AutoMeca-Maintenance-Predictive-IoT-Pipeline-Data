@@ -1,6 +1,6 @@
 """Configuration de logs partagee par tous les composants du pipeline.
 
-Chaque script (extraction, streaming, orchestration...) appelle
+Chaque script (extraction, ext_load_streaming, orchestration...) appelle
 get_logger(__name__) plutot que d'utiliser print() — necessaire pour
 diagnostiquer un echec en production (voir page 2 du diagramme :
 alerte operationnelle en cas d'echec).
