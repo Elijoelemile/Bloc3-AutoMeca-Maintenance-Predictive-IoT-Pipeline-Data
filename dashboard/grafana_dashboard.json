@@ -1,0 +1,96 @@
+{
+  "title": "AutoMeca — Supervision pipeline Bloc 3",
+  "uid": "automeca-bloc3-supervision",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Fraîcheur des données",
+      "description": "depuis la dernière mesure intégrée",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "automeca-clickhouse" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "sql",
+          "format": 1,
+          "rawSql": "SELECT dateDiff('second', max(datetime_mes), now()) AS fraicheur_secondes FROM automeca.telemetrie"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 120 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Taux d'erreur",
+      "description": "données rejetées / mises en quarantaine (dernières 24h)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "automeca-clickhouse" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "sql",
+          "format": 1,
+          "rawSql": "SELECT 100.0 * quarantaine / greatest(quarantaine + valides, 1) AS taux_erreur_pct FROM (SELECT (SELECT count() FROM automeca.telemetrie_quarantaine WHERE horodatage_quarantaine >= now() - INTERVAL 1 DAY) AS quarantaine, (SELECT count() FROM automeca.telemetrie WHERE horodatage_ingestion >= now() - INTERVAL 1 DAY) AS valides)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Latence bout-en-bout",
+      "description": "capteur → donnée disponible (moyenne, dernière heure)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "automeca-clickhouse" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "sql",
+          "format": 1,
+          "rawSql": "SELECT avg(dateDiff('second', datetime_mes, horodatage_ingestion)) AS latence_secondes FROM automeca.telemetrie WHERE horodatage_ingestion >= now() - INTERVAL 1 HOUR"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
