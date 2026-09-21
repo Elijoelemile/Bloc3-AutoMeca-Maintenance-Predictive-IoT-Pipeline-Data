@@ -91,13 +91,14 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 │   ├── 00_add_missing_constraints.sql  # prérequis, complément au DDL Bloc 2
 │   ├── transform_datamart.sql          # fusion staging -> datamart (testée, idempotente)
 │   ├── materialized_view_telemetrie.sql  # RMS + tendance par fenêtre 1 min (testée sur ClickHouse réel)
-│   └── consolidation.sql (ou .py)        # jointure télémétrie ClickHouse + datamart PostgreSQL (a venir)
+│   ├── 01_add_fait_telemetrie_jour.sql   # nouvelle table de faits (grain machine x jour), prérequis
+│   └── consolidation.py                  # jointure télémétrie ClickHouse + datamart PostgreSQL (testée de bout en bout)
 ├── quality/                 # validation + quarantaine (a venir)
 ├── privacy/                 # RGPD — pseudonymisation (a venir)
 ├── orchestration/            # DAG Airflow (a venir)
 ├── dashboard/                 # config Grafana (a venir)
 ├── tests/
-│   ├── unit/                  # 20 tests, mocks — aucune connexion reelle
+│   ├── unit/                  # 26 tests, mocks — aucune connexion reelle
 │   └── functional/            # (a venir)
 ├── .env.example
 ├── .gitignore
@@ -119,7 +120,7 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`common/`** — utilitaires partagés par tout le pipeline : configuration (secrets via variables d'environnement, jamais en dur), logs structurés, client Object Storage
 - **`extraction/`** — flux batch : récupération des 4 fichiers GMAO/ERP (Kaggle API) vers le data lake, puis chargement brut vers le staging PostgreSQL — idempotent
 - **`ext_load_streaming/`** — flux temps réel : pont MQTT → Kafka (structurel, aucune validation métier), puis consommateur Kafka qui charge par lots la télémétrie brute dans Object Storage (Parquet) et la table ClickHouse `automeca.telemetrie` — offset Kafka commité seulement après succès des deux écritures
-- **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2), la transformation staging → datamart (testée contre un vrai PostgreSQL, fusion correcte et idempotence confirmées), la vue matérialisée ClickHouse RMS vibratoire + tendance de pression par fenêtre d'1 minute (testée contre un vrai ClickHouse : recalcul automatique et fusion des états partiels confirmés sur deux inserts séparés dans la même fenêtre), et la consolidation télémétrie ↔ datamart à venir (mécanisme technique — connecteur cross-moteur ou script Python — pas encore tranché)
-- **`tests/unit/`** — 20 tests couvrant l'extraction, le chargement staging et le pipeline temps réel, sans connexion réelle (mocks)
+- **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2), la transformation staging → datamart (testée contre un vrai PostgreSQL, fusion correcte et idempotence confirmées), la vue matérialisée ClickHouse RMS vibratoire + tendance de pression par fenêtre d'1 minute (testée contre un vrai ClickHouse), et la consolidation quotidienne — nouvelle table de faits `datamart.fait_telemetrie_jour` (grain machine × jour, dimensions `dim_machine`/`dim_date` réutilisées) alimentée par un script Python qui joint ClickHouse et PostgreSQL (jointure cross-moteur impossible nativement en SQL sans connecteur fragile) ; testée de bout en bout contre un vrai PostgreSQL + ClickHouse : valeurs recalculées vérifiées manuellement, idempotence confirmée sur une deuxième exécution
+- **`tests/unit/`** — 26 tests couvrant l'extraction, le chargement staging, le pipeline temps réel et la consolidation, sans connexion réelle (mocks)
 
-Composants restants (consolidation, quality, privacy, orchestration, dashboard) : à venir.
+Composants restants (quality, privacy, orchestration, dashboard) : à venir.
