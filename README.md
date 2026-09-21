@@ -52,7 +52,7 @@ Toutes les sources convergent vers un **data lake unique et centralisé**
 y est déposée au format **Parquet**, adapté aux séries temporelles.
 
 > [!NOTE]
-> Le pipeline ne crée jamais les tables de destination (staging, datamart, télémétrie) — elles sont créées séparément via les scripts du dépôt [Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data](https://github.com/<user>/Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data), en amont, comme prérequis documenté (pas de dépendance technique entre les deux dépôts). **Prérequis complémentaires, propres à ce dépôt**, à exécuter une seule fois juste après le DDL du Bloc 2 : `transform/00_add_missing_constraints.sql` (contraintes d'unicité manquantes, nécessaires pour que le pipeline soit réellement idempotent — `ON CONFLICT DO NOTHING`), `transform/01_add_fait_telemetrie_jour.sql` (nouvelle table de faits pour la consolidation quotidienne) et `quality/00_add_quarantine_table.sql` (table ClickHouse de quarantaine).
+> Le pipeline ne crée jamais les tables de destination (staging, datamart, télémétrie) — elles sont créées séparément via les scripts du dépôt [Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data](https://github.com/<user>/Bloc2-AutoMeca-Maintenance-Predictive-IoT-Architecture-Data), en amont, comme prérequis documenté (pas de dépendance technique entre les deux dépôts). **Prérequis complémentaires, propres à ce dépôt**, à exécuter une seule fois juste après le DDL du Bloc 2 : `transform/00_add_missing_constraints.sql` (contraintes d'unicité manquantes, nécessaires pour que le pipeline soit réellement idempotent — `ON CONFLICT DO NOTHING`), `transform/01_add_fait_telemetrie_jour.sql` (nouvelle table de faits pour la consolidation quotidienne), `quality/00_add_quarantine_table.sql` (table ClickHouse de quarantaine) et `privacy/00_widen_matricule_column.sql` (colonne élargie pour stocker un pseudonyme complet).
 
 > [!IMPORTANT]
 > La vue matérialisée ClickHouse se recalcule automatiquement à chaque insertion — RMS et tendance restent à jour en quelques secondes, **sans moteur de traitement de flux externe** (pas de cluster Spark Streaming à opérer). Le calcul temps réel reste ainsi entièrement en SQL, cohérent avec le reste du pipeline ELT.
@@ -62,6 +62,9 @@ y est déposée au format **Parquet**, adapté aux séries temporelles.
 
 > [!IMPORTANT]
 > Le pipeline est orchestré de bout en bout par **Airflow**, sans intervention manuelle. Chaque tâche dispose d'une **reprise automatique sur erreur** (relance idempotente) et déclenche une **alerte opérationnelle immédiate** en cas d'échec — distincte de l'alerte précoce métier (qui signale une panne probable, pas un problème du pipeline).
+
+> [!NOTE]
+> Le volet RGPD du diagramme (page 2) a deux parties distinctes, reliées par un trait en pointillé (pas une étape du flux de données) : la **pseudonymisation** (`privacy/pseudonymisation.py`, code applicatif, prêt) et le **journal d'accès & traitements** (traçabilité des accès humains à `dim_operateur`) — ce second volet est une configuration d'infrastructure (extension `pgaudit` sur PostgreSQL), pas du code, et sera activée **au moment du provisionnement OVHcloud**, pas avant.
 
 Une seconde page du diagramme couvre les contrôles transverses au
 pipeline : **validation & quarantaine** des données capteurs
@@ -96,11 +99,13 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 ├── quality/                 # validation + quarantaine
 │   ├── validation_rules.py     # regle par mesure (hors plage) + regle periodique (capteur silencieux)
 │   └── 00_add_quarantine_table.sql  # table ClickHouse dediee, prerequis
-├── privacy/                 # RGPD — pseudonymisation (a venir)
+├── privacy/                 # RGPD — pseudonymisation
+│   ├── pseudonymisation.py     # HMAC-SHA256 a cle, deterministe, non reversible sans la cle
+│   └── 00_widen_matricule_column.sql  # dim_operateur.matricule -> VARCHAR(64), prerequis
 ├── orchestration/            # DAG Airflow (a venir)
 ├── dashboard/                 # config Grafana (a venir)
 ├── tests/
-│   ├── unit/                  # 37 tests, mocks — aucune connexion reelle
+│   ├── unit/                  # 43 tests, mocks — aucune connexion reelle
 │   └── functional/            # (a venir)
 ├── .env.example
 ├── .gitignore
@@ -124,6 +129,7 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`ext_load_streaming/`** — flux temps réel : pont MQTT → Kafka (structurel, aucune validation métier), puis consommateur Kafka qui applique les règles de `quality/` avant de charger par lots la télémétrie valide dans Object Storage (Parquet) et la table ClickHouse `automeca.telemetrie` — offset Kafka commité seulement après succès des écritures
 - **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2), la transformation staging → datamart (testée contre un vrai PostgreSQL, fusion correcte et idempotence confirmées), la vue matérialisée ClickHouse RMS vibratoire + tendance de pression par fenêtre d'1 minute (testée contre un vrai ClickHouse), et la consolidation quotidienne — nouvelle table de faits `datamart.fait_telemetrie_jour` (grain machine × jour, dimensions `dim_machine`/`dim_date` réutilisées) alimentée par un script Python qui joint ClickHouse et PostgreSQL (jointure cross-moteur impossible nativement en SQL sans connecteur fragile) ; testée de bout en bout contre un vrai PostgreSQL + ClickHouse : valeurs recalculées vérifiées manuellement, idempotence confirmée sur une deuxième exécution
 - **`quality/`** — deux contrôles de nature différente (voir page 2 du diagramme) : **valeur hors plage** (par mesure — bornes calculées sur les 876 100 mesures réelles du dataset Kaggle, marge de sécurité pour ne jamais rejeter une vraie valeur historique ; mesure suspecte isolée dans `automeca.telemetrie_quarantaine`, jamais fusionnée) et **capteur silencieux** (contrôle périodique — pas de message à mettre en quarantaine quand aucune donnée n'arrive ; fonction prête, câblée plus tard par `orchestration/`) ; testé de bout en bout contre un vrai ClickHouse — a aussi révélé et corrigé un bug de typage (`datetime_mes` inséré comme chaîne au lieu d'un vrai `datetime`, jamais détecté par les tests mockés)
-- **`tests/unit/`** — 37 tests couvrant l'extraction, le chargement staging, le pipeline temps réel, la consolidation et la qualité des données, sans connexion réelle (mocks)
+- **`privacy/`** — pseudonymisation des identités opérateur par HMAC-SHA256 à clé (déterministe, non réversible sans la clé secrète — `PRIVACY_PSEUDONYMISATION_KEY`) ; prête mais pas encore câblée dans un flux actif, `dim_operateur` (Bloc 2) n'étant pas peuplée. Le journal d'accès & traitements (RGPD, 2ᵉ volet) est une configuration d'infrastructure (`pgaudit`), pas du code — voir la note plus haut
+- **`tests/unit/`** — 43 tests couvrant l'extraction, le chargement staging, le pipeline temps réel, la consolidation, la qualité des données et la pseudonymisation, sans connexion réelle (mocks)
 
 Composants restants (privacy, orchestration, dashboard) : à venir.

@@ -85,6 +85,11 @@ class AlertThresholds:
     pressure_trend: float
 
 
+@dataclass(frozen=True)
+class PrivacyConfig:
+    pseudonymisation_key: bytes
+
+
 def load_kaggle_config() -> KaggleConfig:
     return KaggleConfig(
         username=_require("KAGGLE_USERNAME"),
@@ -140,4 +145,10 @@ def load_alert_thresholds() -> AlertThresholds:
     return AlertThresholds(
         rms_vibration=_optional_float("ALERT_RMS_VIBRATION_THRESHOLD", 45.0),
         pressure_trend=_optional_float("ALERT_PRESSURE_TREND_THRESHOLD", 15.0),
+    )
+
+
+def load_privacy_config() -> PrivacyConfig:
+    return PrivacyConfig(
+        pseudonymisation_key=_require("PRIVACY_PSEUDONYMISATION_KEY").encode("utf-8"),
     )
