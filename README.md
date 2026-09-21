@@ -31,9 +31,10 @@ un seul modèle, décliné à deux cadences :
 - **Flux temps réel** (capteurs critiques, continu) : ingestion via
   MQTT/Kafka, dépôt brut dans Object Storage (data lake, cohérent avec
   les 4 autres sources du Bloc 2) puis chargement dans ClickHouse ; une
-  **vue matérialisée**, calculée en fenêtre glissante, produit le RMS
-  vibratoire et la tendance de pression et déclenche une alerte précoce
-  si un seuil est dépassé.
+  **vue matérialisée**, recalculée automatiquement à chaque insertion
+  (fenêtre tumbling d'1 minute par machine), produit le RMS vibratoire
+  et la tendance de pression — une alerte précoce est ensuite déclenchée
+  si un seuil est dépassé (règle Grafana, voir `dashboard/`).
 - **Flux batch quotidien** : extraction GMAO/ERP + capteurs, chargement
   brut (Object Storage → staging), puis transformation SQL vers le
   star schema du Bloc 2. Une étape de **consolidation** joint ensuite
@@ -89,7 +90,7 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 ├── transform/               # Transform — requêtes réelles
 │   ├── 00_add_missing_constraints.sql  # prérequis, complément au DDL Bloc 2
 │   ├── transform_datamart.sql          # fusion staging -> datamart (testée, idempotente)
-│   └── materialized_view_telemetrie.sql  # RMS + tendance (a venir)
+│   └── materialized_view_telemetrie.sql  # RMS + tendance par fenêtre 1 min (testée sur ClickHouse réel)
 ├── quality/                 # validation + quarantaine (a venir)
 ├── privacy/                 # RGPD — pseudonymisation (a venir)
 ├── orchestration/            # DAG Airflow (a venir)
@@ -117,7 +118,7 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`common/`** — utilitaires partagés par tout le pipeline : configuration (secrets via variables d'environnement, jamais en dur), logs structurés, client Object Storage
 - **`extraction/`** — flux batch : récupération des 4 fichiers GMAO/ERP (Kaggle API) vers le data lake, puis chargement brut vers le staging PostgreSQL — idempotent
 - **`ext_load_streaming/`** — flux temps réel : pont MQTT → Kafka (structurel, aucune validation métier), puis consommateur Kafka qui charge par lots la télémétrie brute dans Object Storage (Parquet) et la table ClickHouse `automeca.telemetrie` — offset Kafka commité seulement après succès des deux écritures
-- **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2) et la transformation réelle staging → datamart ; testée contre un vrai PostgreSQL (fusion correcte, idempotence confirmée)
+- **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2), la transformation staging → datamart (testée contre un vrai PostgreSQL, fusion correcte et idempotence confirmées), et la vue matérialisée ClickHouse RMS vibratoire + tendance de pression par fenêtre d'1 minute (testée contre un vrai ClickHouse : recalcul automatique et fusion des états partiels confirmés sur deux inserts séparés dans la même fenêtre)
 - **`tests/unit/`** — 20 tests couvrant l'extraction, le chargement staging et le pipeline temps réel, sans connexion réelle (mocks)
 
-Composants restants (vue matérialisée ClickHouse, quality, privacy, orchestration, dashboard) : à venir.
+Composants restants (quality, privacy, orchestration, dashboard) : à venir.
