@@ -1,0 +1,20 @@
+# Secrets / environnement
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Données (jamais versionnées — voir Bloc 2 pour la source)
+data/
+*.csv
+*.parquet
+
+# Divers OS
+.DS_Store
+Thumbs.db
+~$*
