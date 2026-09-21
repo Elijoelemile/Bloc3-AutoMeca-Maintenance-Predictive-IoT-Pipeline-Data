@@ -24,6 +24,7 @@ from ext_load_streaming.kafka_to_clickhouse import (
     object_key_for_batch,
     parse_kafka_message,
     process_batch,
+    try_flush,
 )
 from ext_load_streaming.mqtt_to_kafka import MalformedMessageError, SensorMessage
 
@@ -140,3 +141,24 @@ def test_process_batch_returns_none_when_entire_batch_quarantined():
     assert result is None
     clickhouse_client.insert.assert_called_once()
     assert clickhouse_client.insert.call_args.args[0] == QUARANTINE_TABLE
+
+
+def test_try_flush_returns_true_on_success():
+    clickhouse_client = MagicMock()
+    batch_timestamp = datetime(2026, 1, 15, 6, 30, 45, tzinfo=timezone.utc)
+
+    with patch("ext_load_streaming.kafka_to_clickhouse.upload_file"):
+        result = try_flush(SAMPLE_MESSAGES, clickhouse_client, batch_timestamp)
+
+    assert result is True
+
+
+def test_try_flush_does_not_raise_and_returns_false_on_failure():
+    clickhouse_client = MagicMock()
+    clickhouse_client.insert.side_effect = ConnectionError("ClickHouse injoignable")
+    batch_timestamp = datetime(2026, 1, 15, 6, 30, 45, tzinfo=timezone.utc)
+
+    with patch("ext_load_streaming.kafka_to_clickhouse.upload_file"):
+        result = try_flush(SAMPLE_MESSAGES, clickhouse_client, batch_timestamp)  # ne doit pas lever
+
+    assert result is False

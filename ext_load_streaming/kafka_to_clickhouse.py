@@ -25,6 +25,13 @@ Avant chargement, chaque lot passe par la regle de qualite "valeur hors
 plage" (quality/validation_rules.py, page 2 du diagramme) : les mesures
 suspectes sont isolees dans automeca.telemetrie_quarantaine plutot que
 chargees normalement — jamais fusionnees avec les donnees validees.
+
+Reprise sur erreur : un echec de chargement (Object Storage/ClickHouse
+momentanement injoignable) est journalise (alerte operationnelle, meme
+terminologie que orchestration/) sans faire planter le processus — le
+lot non vide est retente au cycle suivant, l'offset Kafka n'etant
+commite qu'apres succes. Meme exigence de resilience que le flux batch
+(Airflow, retries + on_failure_callback), pour l'ensemble du pipeline.
 """
 import io
 import tempfile
@@ -132,6 +139,21 @@ def process_batch(messages: list[SensorMessage], clickhouse_client, batch_timest
     return flush_batch(valides, clickhouse_client, batch_timestamp=batch_timestamp)
 
 
+def try_flush(messages: list[SensorMessage], clickhouse_client, batch_timestamp: datetime) -> bool:
+    """Reprise sur erreur du flux temps reel : ne leve jamais. Retourne True
+    si le lot a ete charge, False si l'appelant doit le retenter au cycle
+    suivant (offset Kafka non commite dans ce cas)."""
+    try:
+        process_batch(messages, clickhouse_client, batch_timestamp=batch_timestamp)
+        return True
+    except Exception:
+        logger.exception(
+            "ALERTE OPERATIONNELLE : echec du chargement du lot temps reel "
+            "(%d mesures) — nouvelle tentative au prochain cycle", len(messages),
+        )
+        return False
+
+
 def get_clickhouse_client(config: ClickHouseConfig | None = None):
     cfg = config or load_clickhouse_config()
     return clickhouse_connect.get_client(
@@ -172,10 +194,10 @@ def run(kafka_config: KafkaConfig | None = None) -> None:
 
             elapsed = (now - last_flush).total_seconds()
             if buffer and (len(buffer) >= BATCH_SIZE or elapsed >= BATCH_INTERVAL_SECONDS):
-                process_batch(buffer, clickhouse_client, batch_timestamp=now)
-                consumer.commit(asynchronous=False)
-                buffer = []
-                last_flush = now
+                if try_flush(buffer, clickhouse_client, now):
+                    consumer.commit(asynchronous=False)
+                    buffer = []
+                    last_flush = now
     finally:
         consumer.close()
 
