@@ -61,7 +61,10 @@ y est déposée au format **Parquet**, adapté aux séries temporelles.
 > Une source **thermographies** (imagerie thermique) est anticipée dans la conception du pipeline mais n'est pas disponible dans le dataset source actuel (Kaggle) — même traitement que la dimension `opérateur` au Bloc 2 : prévue, non peuplée pour cette itération.
 
 > [!IMPORTANT]
-> Le pipeline est orchestré de bout en bout par **Airflow**, sans intervention manuelle. Chaque tâche dispose d'une **reprise automatique sur erreur** (relance idempotente) et déclenche une **alerte opérationnelle immédiate** en cas d'échec — distincte de l'alerte précoce métier (qui signale une panne probable, pas un problème du pipeline).
+> Le pipeline est orchestré de bout en bout par **Airflow**, sans intervention manuelle. Chaque tâche dispose d'une **reprise automatique sur erreur** (relance idempotente) et déclenche une **alerte opérationnelle immédiate** en cas d'échec — distincte de l'alerte précoce métier (qui signale une panne probable, pas un problème du pipeline). Deux DAG couvrent le flux batch quotidien et le contrôle périodique "capteur silencieux" — les deux processus temps réel restent hors périmètre d'Airflow (voir `orchestration/`).
+
+> [!WARNING]
+> Airflow n'est pas officiellement supporté sur Windows natif (nécessite WSL2 ou un conteneur Linux pour tourner réellement — [issue #10388](https://github.com/apache/airflow/issues/10388)). Sans impact pour la cible de déploiement (serveurs Linux OVHcloud), mais à savoir pour tout développement/test local du DAG sur ce poste : `orchestration/dag_pipeline_bloc3.py` a été validé via `DagBag` (parsing, dépendances de tâches, `default_args`), pas via un scheduler Airflow réellement démarré.
 
 > [!NOTE]
 > Le volet RGPD du diagramme (page 2) a deux parties distinctes, reliées par un trait en pointillé (pas une étape du flux de données) : la **pseudonymisation** (`privacy/pseudonymisation.py`, code applicatif, prêt) et le **journal d'accès & traitements** (traçabilité des accès humains à `dim_operateur`) — ce second volet est une configuration d'infrastructure (extension `pgaudit` sur PostgreSQL), pas du code, et sera activée **au moment du provisionnement OVHcloud**, pas avant.
@@ -102,10 +105,12 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 ├── privacy/                 # RGPD — pseudonymisation
 │   ├── pseudonymisation.py     # HMAC-SHA256 a cle, deterministe, non reversible sans la cle
 │   └── 00_widen_matricule_column.sql  # dim_operateur.matricule -> VARCHAR(64), prerequis
-├── orchestration/            # DAG Airflow (a venir)
+├── orchestration/            # DAG Airflow
+│   ├── dag_pipeline_bloc3.py    # 2 DAG : pipeline batch quotidien + surveillance capteurs (1 min)
+│   └── sql_runner.py            # execution d'un fichier .sql contre PostgreSQL (tache "transformation_datamart")
 ├── dashboard/                 # config Grafana (a venir)
 ├── tests/
-│   ├── unit/                  # 43 tests, mocks — aucune connexion reelle
+│   ├── unit/                  # 50 tests, mocks — aucune connexion reelle
 │   └── functional/            # (a venir)
 ├── .env.example
 ├── .gitignore
@@ -130,6 +135,7 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`transform/`** — le prérequis de contraintes (complément au DDL du Bloc 2), la transformation staging → datamart (testée contre un vrai PostgreSQL, fusion correcte et idempotence confirmées), la vue matérialisée ClickHouse RMS vibratoire + tendance de pression par fenêtre d'1 minute (testée contre un vrai ClickHouse), et la consolidation quotidienne — nouvelle table de faits `datamart.fait_telemetrie_jour` (grain machine × jour, dimensions `dim_machine`/`dim_date` réutilisées) alimentée par un script Python qui joint ClickHouse et PostgreSQL (jointure cross-moteur impossible nativement en SQL sans connecteur fragile) ; testée de bout en bout contre un vrai PostgreSQL + ClickHouse : valeurs recalculées vérifiées manuellement, idempotence confirmée sur une deuxième exécution
 - **`quality/`** — deux contrôles de nature différente (voir page 2 du diagramme) : **valeur hors plage** (par mesure — bornes calculées sur les 876 100 mesures réelles du dataset Kaggle, marge de sécurité pour ne jamais rejeter une vraie valeur historique ; mesure suspecte isolée dans `automeca.telemetrie_quarantaine`, jamais fusionnée) et **capteur silencieux** (contrôle périodique — pas de message à mettre en quarantaine quand aucune donnée n'arrive ; fonction prête, câblée plus tard par `orchestration/`) ; testé de bout en bout contre un vrai ClickHouse — a aussi révélé et corrigé un bug de typage (`datetime_mes` inséré comme chaîne au lieu d'un vrai `datetime`, jamais détecté par les tests mockés)
 - **`privacy/`** — pseudonymisation des identités opérateur par HMAC-SHA256 à clé (déterministe, non réversible sans la clé secrète — `PRIVACY_PSEUDONYMISATION_KEY`) ; prête mais pas encore câblée dans un flux actif, `dim_operateur` (Bloc 2) n'étant pas peuplée. Le journal d'accès & traitements (RGPD, 2ᵉ volet) est une configuration d'infrastructure (`pgaudit`), pas du code — voir la note plus haut
-- **`tests/unit/`** — 43 tests couvrant l'extraction, le chargement staging, le pipeline temps réel, la consolidation, la qualité des données et la pseudonymisation, sans connexion réelle (mocks)
+- **`orchestration/`** — deux DAG Airflow : `pipeline_batch_bloc3` (quotidien — extraction → staging → datamart → consolidation, dans cet ordre strict) et `surveillance_capteurs_bloc3` (toutes les minutes — câble enfin la règle "capteur silencieux" de `quality/`, jusque-là prête mais inexploitée). Chaque tâche a une reprise automatique sur erreur (3 tentatives, sans risque de doublon — tout est idempotent) et journalise une alerte opérationnelle en cas d'échec définitif. Validé via `airflow.models.DagBag` (parsing réel, aucune erreur d'import, dépendances de tâches et `default_args` vérifiés) — voir l'avertissement Windows/WSL2 plus haut. **Hors périmètre volontairement** : les deux processus temps réel (`ext_load_streaming/`) tournent en continu, ce ne sont pas des tâches planifiables — supervisés séparément par l'environnement d'exécution
+- **`tests/unit/`** — 50 tests couvrant l'extraction, le chargement staging, le pipeline temps réel, la consolidation, la qualité des données, la pseudonymisation et l'orchestration, sans connexion réelle (mocks)
 
 Composants restants (privacy, orchestration, dashboard) : à venir.

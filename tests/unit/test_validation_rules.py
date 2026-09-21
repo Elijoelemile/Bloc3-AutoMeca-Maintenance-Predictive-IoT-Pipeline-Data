@@ -1,14 +1,19 @@
 """Tests unitaires — quality/validation_rules.py
 
-Fonctions pures, aucun mock necessaire.
+Fonctions pures (aucun mock necessaire) + fonctions de cablage
+(ClickHouse/PostgreSQL mockes).
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 from ext_load_streaming.mqtt_to_kafka import SensorMessage
 from quality.validation_rules import (
     detect_capteurs_silencieux,
+    fetch_dernier_message_par_machine,
+    fetch_machines_connues,
     partition_messages,
     valeur_hors_plage,
+    verifier_capteurs_silencieux,
 )
 
 MESSAGE_VALIDE = SensorMessage(1, "2026-01-15T06:00:00", 176.2, 418.5, 113.0, 45.0)
@@ -69,5 +74,59 @@ def test_detect_capteurs_silencieux_empty_when_all_recent():
         dernier_message, machines_connues={1}, reference_time=reference_time,
         seuil=timedelta(minutes=5),
     )
+
+    assert result == []
+
+
+def test_fetch_dernier_message_par_machine_builds_dict():
+    clickhouse_client = MagicMock()
+    clickhouse_client.query.return_value.result_rows = [
+        (1, datetime(2026, 1, 15, 11, 59)),
+        (2, datetime(2026, 1, 15, 11, 50)),
+    ]
+
+    result = fetch_dernier_message_par_machine(clickhouse_client)
+
+    assert result == {1: datetime(2026, 1, 15, 11, 59), 2: datetime(2026, 1, 15, 11, 50)}
+
+
+def test_fetch_machines_connues_builds_set():
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = [(1,), (2,), (3,)]
+
+    result = fetch_machines_connues(mock_conn)
+
+    assert result == {1, 2, 3}
+
+
+def test_verifier_capteurs_silencieux_end_to_end_with_mocks():
+    reference_time = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
+    clickhouse_client = MagicMock()
+    clickhouse_client.query.return_value.result_rows = [
+        (1, reference_time - timedelta(minutes=1)),   # recent
+        (2, reference_time - timedelta(minutes=10)),  # silencieuse
+    ]
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = [(1,), (2,), (3,)]  # machine 3 : jamais vue
+
+    result = verifier_capteurs_silencieux(clickhouse_client, mock_conn, reference_time=reference_time)
+
+    assert result == [2, 3]
+
+
+def test_verifier_capteurs_silencieux_returns_empty_when_all_recent():
+    reference_time = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
+    clickhouse_client = MagicMock()
+    clickhouse_client.query.return_value.result_rows = [(1, reference_time - timedelta(minutes=1))]
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = [(1,)]
+
+    result = verifier_capteurs_silencieux(clickhouse_client, mock_conn, reference_time=reference_time)
 
     assert result == []

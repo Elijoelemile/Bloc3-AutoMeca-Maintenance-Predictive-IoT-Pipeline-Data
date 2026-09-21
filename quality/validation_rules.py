@@ -10,10 +10,9 @@ distinction) :
   les donnees validees.
 - **Capteur silencieux** : controle PERIODIQUE, pas un filtre par
   message — il n'y a rien a mettre en quarantaine quand aucun message
-  n'arrive (une absence n'est pas une donnee a isoler). Fonction prete
-  et testee, cablee plus tard par une tache planifiee dans
-  orchestration/ (meme statut que privacy/pseudonymisation.py : prete
-  mais pas encore exploitee dans la boucle temps reel).
+  n'arrive (une absence n'est pas une donnee a isoler). Cablee par
+  orchestration/dag_pipeline_bloc3.py (tache planifiee toutes les
+  minutes) via verifier_capteurs_silencieux(), ci-dessous.
 
 Bornes de plausibilite calculees sur les 876 100 mesures reelles du
 dataset Kaggle (PdM_telemetry.csv) : min/max observes + marge de
@@ -21,9 +20,12 @@ securite, pour ne jamais rejeter une vraie valeur historique — la
 regle vise une panne capteur/donnee corrompue, pas une condition de
 fonctionnement rare mais reelle.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
+from common.logging_config import get_logger
 from ext_load_streaming.mqtt_to_kafka import SensorMessage
+
+logger = get_logger(__name__)
 
 # (borne_min, borne_max) — min/max reels observes, elargis d'une marge
 # de securite (voir docstring du module).
@@ -76,3 +78,34 @@ def detect_capteurs_silencieux(
         if dernier is None or (reference_time - dernier) > seuil:
             silencieuses.append(machine_id)
     return sorted(silencieuses)
+
+
+def fetch_dernier_message_par_machine(clickhouse_client) -> dict[int, datetime]:
+    result = clickhouse_client.query(
+        "SELECT machine_id, max(datetime_mes) FROM automeca.telemetrie GROUP BY machine_id"
+    )
+    return dict(result.result_rows)
+
+
+def fetch_machines_connues(conn) -> set[int]:
+    with conn.cursor() as cur:
+        cur.execute("SELECT machine_id_nat FROM datamart.dim_machine")
+        return {row[0] for row in cur.fetchall()}
+
+
+def verifier_capteurs_silencieux(
+    clickhouse_client,
+    conn,
+    reference_time: datetime | None = None,
+    seuil: timedelta = SEUIL_SILENCE_DEFAUT,
+) -> list[int]:
+    """Cablage reel du controle periodique — appele par orchestration/
+    (tache planifiee). Journalise une alerte si des machines sont
+    silencieuses, ne leve jamais d'exception pour une liste vide."""
+    reference_time = reference_time or datetime.now(timezone.utc)
+    dernier_message = fetch_dernier_message_par_machine(clickhouse_client)
+    machines_connues = fetch_machines_connues(conn)
+    silencieuses = detect_capteurs_silencieux(dernier_message, machines_connues, reference_time, seuil)
+    if silencieuses:
+        logger.warning("Capteurs silencieux detectes (aucune mesure depuis %s) : %s", seuil, silencieuses)
+    return silencieuses
