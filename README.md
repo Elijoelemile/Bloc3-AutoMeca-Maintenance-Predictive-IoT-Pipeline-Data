@@ -118,7 +118,14 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 │   └── grafana_alert_rules.yaml         # alerte precoce (RMS vibratoire + tendance de pression)
 ├── tests/
 │   ├── unit/                  # 50 tests, mocks — aucune connexion reelle
-│   └── functional/            # (a venir)
+│   └── functional/            # 8 tests, PostgreSQL/ClickHouse/Airflow reels (testcontainers)
+│       ├── fixtures/            # copie figee du DDL Bloc 2 (pas de dependance technique inter-depots)
+│       ├── conftest.py           # conteneurs Docker ephemeres, DDL applique automatiquement
+│       ├── test_transform_datamart.py
+│       ├── test_materialized_view.py
+│       ├── test_consolidation.py
+│       ├── test_quality_quarantine.py
+│       └── test_dag_validity.py
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -146,5 +153,6 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - **`orchestration/`** — deux DAG Airflow : `pipeline_batch_bloc3` (quotidien — extraction → staging → datamart → consolidation, dans cet ordre strict) et `surveillance_capteurs_bloc3` (toutes les minutes — câble enfin la règle "capteur silencieux" de `quality/`, jusque-là prête mais inexploitée). Chaque tâche a une reprise automatique sur erreur (3 tentatives, sans risque de doublon — tout est idempotent) et journalise une alerte opérationnelle en cas d'échec définitif. Validé via `airflow.models.DagBag` (parsing réel, aucune erreur d'import, dépendances de tâches et `default_args` vérifiés) — voir l'avertissement Windows/WSL2 plus haut. **Hors périmètre volontairement** : les deux processus temps réel (`ext_load_streaming/`) tournent en continu, ce ne sont pas des tâches planifiables — supervisés séparément par l'environnement d'exécution
 - **`dashboard/`** — le prérequis d'horodatage d'ingestion (nécessaire pour mesurer la latence, jusque-là non enregistrée), le tableau de bord Grafana (3 panneaux : fraîcheur des données, taux d'erreur — calculé sur `automeca.telemetrie_quarantaine`, latence bout-en-bout) et la règle d'alerte précoce (RMS vibratoire + tendance de pression, seuils alignés sur `common/config.py`). Testé de bout en bout contre un vrai Grafana + ClickHouse (Docker) : datasource, dashboard et règles d'alerte provisionnés sans erreur, les 3 requêtes des panneaux exécutées avec des résultats corrects, et l'alerte RMS observée en conditions réelles jusqu'à l'état `firing` — un bug de format de requête (`reduce` exige une série agrégée, pas un tableau multi-lignes) trouvé et corrigé au passage
 - **`tests/unit/`** — 50 tests couvrant l'extraction, le chargement staging, le pipeline temps réel, la consolidation, la qualité des données, la pseudonymisation et l'orchestration, sans connexion réelle (mocks)
+- **`tests/functional/`** — 8 tests contre de vraies infrastructures (PostgreSQL, ClickHouse, Airflow), via `testcontainers` : rejouent automatiquement les vérifications Docker faites à la main pendant la construction du bloc (fusion + idempotence de `transform_datamart.sql`, RMS/tendance + raffinement incrémental de la vue matérialisée, routage vers la quarantaine, jointure cross-moteur + idempotence de `consolidation.py`, validité réelle du DAG). Le DDL du Bloc 2 est copié dans `fixtures/` (pas une dépendance technique — la suite tourne à partir d'un simple clone de ce dépôt). Grafana reste vérifié manuellement (voir plus haut) : sa logique de calcul vit entièrement dans ClickHouse, déjà couverte ici — automatiser réinstallerait un plugin réseau à chaque lancement pour peu de protection supplémentaire
 
-Composants restants (privacy, orchestration, dashboard) : à venir.
+Tous les composants du pipeline (extraction, flux temps réel, transformation, qualité, RGPD, orchestration, supervision) sont construits, testés et vérifiés contre de vraies infrastructures.

@@ -20,3 +20,4 @@ apache-airflow>=2.9
 
 # Tests
 pytest>=8.0
+testcontainers[postgres]>=4.9  # tests/functional/ — PostgreSQL et ClickHouse reels, Docker requis
