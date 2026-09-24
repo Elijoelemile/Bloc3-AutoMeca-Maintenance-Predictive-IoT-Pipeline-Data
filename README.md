@@ -145,7 +145,7 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 - 📈 **Grafana** — tableau de bord de supervision + alerte précoce (RMS vibratoire, tendance de pression)
 
 > [!NOTE]
-> Kafka et ClickHouse tournent en auto-hébergé (petite instance Compute), pas via les offres managées OVHcloud — celles-ci démarrent à plusieurs centaines de dollars par mois (minimum 3 nœuds pour Kafka, HA pensée pour de la production réelle), disproportionné pour ce cas fictif de certification. Détail du raisonnement et des tarifs dans le README du Bloc 2.
+> Kafka et ClickHouse tournent en auto-hébergé (petite instance Compute), pas via les offres managées OVHcloud — celles-ci démarrent à plusieurs centaines de dollars par mois (minimum 3 nœuds pour Kafka, HA pensée pour de la production réelle), disproportionné pour ce cas fictif de certification et incompatible avec le crédit d'essai Public Cloud (200 €, 1 mois). Cette même instance est aussi partagée avec les conteneurs du Bloc 4 (API + interface de supervision) — un seul poste de coût plutôt qu'une instance par service, et aucun Kubernetes/registre de conteneurs (inutiles à cette échelle). Détail complet du raisonnement et des tarifs dans le README du Bloc 2, section "Contraintes de coût et choix d'infrastructure OVHcloud".
 
 ## 📦 Contenu
 
