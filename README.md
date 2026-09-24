@@ -137,12 +137,15 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 
 ## 🛠️ Stack technique
 
-- 📡 **Kafka managé (OVHcloud)** — broker d'ingestion (MQTT → Kafka)
-- ⚡ **ClickHouse** — stockage de la télémétrie brute (Parquet) + vue matérialisée (RMS, tendance, alerting)
-- 🐘 **PostgreSQL** — staging + datamart (Bloc 2)
+- 📡 **Kafka** (auto-hébergé, petite instance Compute OVHcloud) — broker d'ingestion (MQTT → Kafka)
+- ⚡ **ClickHouse** (auto-hébergé, petite instance Compute OVHcloud) — stockage de la télémétrie brute (Parquet) + vue matérialisée (RMS, tendance, alerting)
+- 🐘 **PostgreSQL managé (OVHcloud)** — staging + datamart (Bloc 2)
 - ☁️ **Object Storage (OVHcloud)** — data lake centralisé unique, partagé entre les deux flux
 - 🪁 **Airflow** — orchestration de bout en bout, reprise sur erreur, alerting opérationnel
 - 📈 **Grafana** — tableau de bord de supervision + alerte précoce (RMS vibratoire, tendance de pression)
+
+> [!NOTE]
+> Kafka et ClickHouse tournent en auto-hébergé (petite instance Compute), pas via les offres managées OVHcloud — celles-ci démarrent à plusieurs centaines de dollars par mois (minimum 3 nœuds pour Kafka, HA pensée pour de la production réelle), disproportionné pour ce cas fictif de certification. Détail du raisonnement et des tarifs dans le README du Bloc 2.
 
 ## 📦 Contenu
 

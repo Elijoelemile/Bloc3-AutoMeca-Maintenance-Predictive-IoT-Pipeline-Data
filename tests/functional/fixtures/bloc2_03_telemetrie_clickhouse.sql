@@ -1,6 +1,7 @@
 -- =====================================================================
 -- BLOC 2 — AutoMeca Systems — Télémétrie (série temporelle)
--- ClickHouse managé (OVHcloud, région UE)
+-- ClickHouse auto-hébergé (petite instance Compute OVHcloud, région UE —
+-- voir README pour la justification face au tarif du ClickHouse managé)
 --
 -- Source : PdM_telemetry.csv (876 100 lignes, 100 machines, mesures
 -- horaires sur 1 an). Volume et cadence trop élevés pour un modèle en
