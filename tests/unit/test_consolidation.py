@@ -1,6 +1,6 @@
 """Tests unitaires — transform/consolidation.py
 
-ClickHouse et PostgreSQL mockes : on teste la logique de fusion (grille
+ClickHouse et PostgreSQL simules : on teste la logique de fusion (grille
 dense sur toutes les machines connues) et le SQL d'ecriture (upsert),
 sans connexion reelle.
 """

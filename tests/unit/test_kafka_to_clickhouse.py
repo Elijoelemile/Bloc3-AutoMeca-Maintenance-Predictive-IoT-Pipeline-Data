@@ -2,7 +2,7 @@
 
 Aucune vraie connexion Kafka/ClickHouse/Object Storage : on teste les
 fonctions pures (parsing, formatage Parquet, cle objet) et le lot
-(flush_batch) avec Object Storage et ClickHouse mockes.
+(flush_batch) avec Object Storage et ClickHouse simules.
 """
 import io
 import json

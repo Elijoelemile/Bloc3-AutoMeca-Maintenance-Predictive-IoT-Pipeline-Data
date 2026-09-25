@@ -1,5 +1,5 @@
 """Test fonctionnel — routage vers la quarantaine (quality/ + ext_load_streaming)
-contre un vrai ClickHouse. Seul Object Storage est mocke (hors perimetre
+contre un vrai ClickHouse. Seul Object Storage est simule (hors perimetre
 ClickHouse, deja couvert par les tests unitaires de kafka_to_clickhouse.py).
 """
 from datetime import datetime, timezone

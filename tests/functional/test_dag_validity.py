@@ -1,5 +1,5 @@
-"""Test fonctionnel — validite reelle du DAG Airflow (DagBag reel, pas
-de mock). Aurait detecte automatiquement le bug on_failure_callback
+"""Test fonctionnel — validite reelle du DAG Airflow (DagBag reel, rien
+de simule). Aurait detecte automatiquement le bug on_failure_callback
 trouve pendant la construction (place au niveau @dag au lieu de
 default_args — ne se declenchait qu'a l'echec du DAG entier, pas de
 chaque tache). Ne necessite pas Docker : Airflow lui-meme est le

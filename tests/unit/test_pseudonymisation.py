@@ -1,6 +1,6 @@
 """Tests unitaires — privacy/pseudonymisation.py
 
-Fonctions pures, aucun mock necessaire.
+Fonctions pures, aucune simulation necessaire.
 """
 import pytest
 

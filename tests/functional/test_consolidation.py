@@ -1,6 +1,6 @@
 """Test fonctionnel — transform/consolidation.py contre de vrais PostgreSQL + ClickHouse.
 
-Complete les tests unitaires (mocks) : verifie le comportement reel de
+Complete les tests unitaires (simules) : verifie le comportement reel de
 la jointure cross-moteur (aucun des deux moteurs ne fait la jointure
 lui-meme, voir la discussion "TRANSFORM (Python)" du diagramme) et
 l'idempotence reelle de l'upsert sur une deuxieme execution.

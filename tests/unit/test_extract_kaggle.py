@@ -1,6 +1,6 @@
 """Tests unitaires — extraction/extract_kaggle.py
 
-Aucune vraie connexion Kaggle ni Object Storage : tout est mocke pour
+Aucune vraie connexion Kaggle ni Object Storage : tout est simule pour
 tester uniquement la logique (quels fichiers, quelles cles, quelle
 gestion d'erreur).
 """

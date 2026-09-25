@@ -1,7 +1,7 @@
 """Tests unitaires — quality/validation_rules.py
 
-Fonctions pures (aucun mock necessaire) + fonctions de cablage
-(ClickHouse/PostgreSQL mockes).
+Fonctions pures (aucune simulation necessaire) + fonctions de cablage
+(ClickHouse/PostgreSQL simules).
 """
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock

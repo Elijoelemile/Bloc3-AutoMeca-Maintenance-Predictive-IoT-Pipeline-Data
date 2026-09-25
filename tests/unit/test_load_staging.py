@@ -1,6 +1,6 @@
 """Tests unitaires — extraction/load_staging.py
 
-DB et Object Storage mockes : on ne teste que la logique (mapping
+DB et Object Storage simules : on ne teste que la logique (mapping
 fichier -> table, colonnes, gestion des lignes vides).
 """
 from unittest.mock import MagicMock, patch

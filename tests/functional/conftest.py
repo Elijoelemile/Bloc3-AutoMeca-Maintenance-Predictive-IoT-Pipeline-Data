@@ -1,5 +1,5 @@
 """Fixtures partagees pour tests/functional/ — infrastructure reelle
-(PostgreSQL, ClickHouse) via testcontainers, aucun mock.
+(PostgreSQL, ClickHouse) via testcontainers, aucune simulation.
 
 Conteneurs a portee "module" : le demarrage Docker coute plusieurs
 secondes, partage entre les tests d'un meme fichier. Chaque test

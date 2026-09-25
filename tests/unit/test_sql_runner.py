@@ -1,6 +1,6 @@
 """Tests unitaires — orchestration/sql_runner.py
 
-PostgreSQL mocke : on verifie que le contenu du fichier est bien lu et
+PostgreSQL simule : on verifie que le contenu du fichier est bien lu et
 execute, et que la connexion est fermee meme en cas d'echec.
 """
 from unittest.mock import MagicMock, patch
