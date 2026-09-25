@@ -1,0 +1,7 @@
+apiVersion: 1
+
+providers:
+  - name: AutoMeca Bloc 3
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards/files

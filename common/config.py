@@ -125,7 +125,7 @@ def load_postgres_config() -> PostgresConfig:
 def load_clickhouse_config() -> ClickHouseConfig:
     return ClickHouseConfig(
         host=_require("CLICKHOUSE_HOST"),
-        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+        port=int(os.environ.get("CLICKHOUSE_PORT", "8123")),
         database=os.environ.get("CLICKHOUSE_DB", "automeca"),
         user=_require("CLICKHOUSE_USER"),
         password=_require("CLICKHOUSE_PASSWORD"),

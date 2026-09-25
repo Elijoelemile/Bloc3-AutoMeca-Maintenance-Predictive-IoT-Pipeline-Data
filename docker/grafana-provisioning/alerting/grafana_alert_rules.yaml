@@ -1,0 +1,99 @@
+# Alerte précoce (page 1 du diagramme) — déclenchée par Grafana, pas
+# par du code Python (voir la discussion dans transform/materialized_
+# view_telemetrie.sql : pas d'alerting applicatif redondant).
+#
+# Seuils alignés sur common/config.py (ALERT_RMS_VIBRATION_THRESHOLD=
+# 45.0, ALERT_PRESSURE_TREND_THRESHOLD=15.0) — à garder synchronisés
+# manuellement si ces valeurs changent (Grafana ne lit pas le .env
+# Python).
+#
+# Requetes A agregees a une seule valeur (max toutes machines
+# confondues) : l'expression "reduce" de Grafana exige une serie
+# agregee en entree, pas un tableau multi-lignes (1 ligne/machine) —
+# verifie empiriquement (voir README), la version par machine
+# provoquait une erreur "input data must be a wide series".
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: alerte-precoce-bloc3
+    folder: AutoMeca Bloc 3
+    interval: 1m
+    rules:
+      - uid: alerte-rms-vibration
+        title: "Alerte précoce — RMS vibratoire élevé"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: automeca-clickhouse
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              queryType: sql
+              rawSql: "SELECT max(rms_vibration) AS rms_vibration FROM automeca.v_telemetrie_tendance WHERE fenetre = (SELECT max(fenetre) FROM automeca.v_telemetrie_tendance)"
+              format: 1
+              refId: A
+          - refId: B
+            datasourceUid: "__expr__"
+            model:
+              type: reduce
+              expression: A
+              reducer: max
+              refId: B
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [45.0]
+              refId: C
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RMS vibratoire au-dessus du seuil (ALERT_RMS_VIBRATION_THRESHOLD)"
+
+      - uid: alerte-tendance-pression
+        title: "Alerte précoce — tendance de pression élevée"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: automeca-clickhouse
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              queryType: sql
+              rawSql: "SELECT max(tendance_pression) AS tendance_pression FROM automeca.v_telemetrie_tendance WHERE fenetre = (SELECT max(fenetre) FROM automeca.v_telemetrie_tendance)"
+              format: 1
+              refId: A
+          - refId: B
+            datasourceUid: "__expr__"
+            model:
+              type: reduce
+              expression: A
+              reducer: max
+              refId: B
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [15.0]
+              refId: C
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tendance de pression au-dessus du seuil (ALERT_PRESSURE_TREND_THRESHOLD)"

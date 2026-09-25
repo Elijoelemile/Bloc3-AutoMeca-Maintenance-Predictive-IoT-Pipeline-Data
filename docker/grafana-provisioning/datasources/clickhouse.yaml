@@ -1,0 +1,26 @@
+# Datasource ClickHouse pour le tableau de bord Grafana (Bloc 3).
+#
+# uid FIXE (automeca-clickhouse) : dashboard/grafana_dashboard.json et
+# grafana_alert_rules.yaml le referencent en dur, pas via une variable
+# de template qui ne se resout pas lors d'un provisioning par fichier
+# (voir README).
+#
+# host = nom du service "clickhouse" dans docker-compose.yml (reseau
+# Docker interne, pas l'IP publique) : Grafana tourne sur la meme
+# instance, pas besoin de sortir par le port expose publiquement.
+apiVersion: 1
+
+datasources:
+  - name: AutoMeca ClickHouse
+    uid: automeca-clickhouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    isDefault: true
+    jsonData:
+      host: clickhouse
+      port: 8123
+      protocol: http
+      username: default
+      defaultDatabase: automeca
+    secureJsonData:
+      password: ${CLICKHOUSE_PASSWORD}
