@@ -1,5 +1,5 @@
 # Kafka + ClickHouse + Grafana auto-heberges (Bloc 3) — sur l'instance
-# Compute (cloud souverain europeen) partagee avec les conteneurs API/UI
+# Compute Scaleway (cloud souverain europeen) partagee avec les conteneurs API/UI
 # du Bloc 4 (voir le README du Bloc 2, section "Contraintes de cout et
 # choix d'infrastructure", pour la justification complete : Kafka et
 # ClickHouse manages coutent a eux seuls plus qu'une instance simple).
