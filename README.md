@@ -143,6 +143,23 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 └── README.md
 ```
 
+## Démarrage local (Kafka + ClickHouse + Grafana)
+
+```bash
+cp .env.example .env   # renseigner CLICKHOUSE_PASSWORD, GRAFANA_ADMIN_PASSWORD, KAFKA_CLUSTER_ID
+# KAFKA_PUBLIC_HOST=localhost pour un usage purement local
+docker compose up -d
+```
+
+- **Grafana** (tableau de bord de supervision) : http://localhost:3000 — utilisateur `admin`, mot de passe celui renseigné dans `.env`
+- **ClickHouse** (interface HTTP) : http://localhost:8123
+- **Kafka** (listener externe) : `localhost:9094`
+
+Le pipeline lui-même (extraction, flux temps réel, orchestration Airflow) tourne en local sur le poste candidat, hors de ces conteneurs (voir la note sur le mode d'exécution Airflow plus haut) — il s'y connecte via les mêmes variables `.env`.
+
+> [!NOTE]
+> Sur l'instance Compute de déploiement réel, ces mêmes ports sont exposés sur l'IP publique de l'instance (restreinte par pare-feu à l'IP du poste candidat — voir `.env.example`), pas sur `localhost`. Aucune IP ni aucun identifiant n'est publié ici : l'instance n'est allumée que pendant les fenêtres de test/démonstration, une IP fixe deviendrait vite obsolète, et publier des identifiants réels dans un dépôt public serait une vraie exposition. La démonstration en conditions réelles se fait via la vidéo (voir grille officielle des livrables).
+
 ## 🛠️ Stack technique
 
 - 📡 **Kafka** (auto-hébergé, petite instance Compute) — broker d'ingestion (MQTT → Kafka)
