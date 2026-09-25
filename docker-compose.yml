@@ -19,26 +19,34 @@
 # .env.example. Meme principe pour Kafka (PLAINTEXT, pas SASL_SSL).
 services:
   kafka:
-    image: bitnami/kafka:3.7
+    # Image officielle Apache Kafka (pas Bitnami : leurs tags versionnes
+    # comme 3.7 ont ete retires du Docker Hub gratuit courant 2025 — pas
+    # dispo au moment du deploiement reel, voir le README pour la trace).
+    # Mode KRaft natif, pas de Zookeeper separe.
+    image: apache/kafka:4.3.1
     restart: unless-stopped
     environment:
-      - KAFKA_CFG_NODE_ID=0
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://${KAFKA_PUBLIC_HOST}:9094
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_NODE_ID=1
+      - CLUSTER_ID=${KAFKA_CLUSTER_ID}
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://${KAFKA_PUBLIC_HOST}:9094
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
     ports:
       - "9094:9094"
     volumes:
-      - kafka_data:/bitnami/kafka
+      - kafka_data:/var/lib/kafka/data
 
   clickhouse:
-    image: clickhouse/clickhouse-server:24
+    # Tag "24" retire du Docker Hub gratuit (verifie au deploiement reel,
+    # meme mesaventure que Bitnami ci-dessus) : latest a la place, image
+    # officielle activement maintenue, acceptable pour une instance de
+    # demo temporaire (pas une prod a long terme necessitant un pin strict).
+    image: clickhouse/clickhouse-server:latest
     restart: unless-stopped
     environment:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
