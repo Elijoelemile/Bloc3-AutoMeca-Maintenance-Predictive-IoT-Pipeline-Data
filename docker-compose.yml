@@ -1,16 +1,15 @@
 # Kafka + ClickHouse + Grafana auto-heberges (Bloc 3) — sur l'instance
-# Compute OVHcloud partagee avec les conteneurs API/UI du Bloc 4 (voir
-# le README du Bloc 2, section "Contraintes de cout et choix
-# d'infrastructure OVHcloud", pour la justification complete : Kafka et
-# ClickHouse manages coutent a eux seuls plus que le credit d'essai
-# entier).
+# Compute (cloud souverain europeen) partagee avec les conteneurs API/UI
+# du Bloc 4 (voir le README du Bloc 2, section "Contraintes de cout et
+# choix d'infrastructure", pour la justification complete : Kafka et
+# ClickHouse manages coutent a eux seuls plus qu'une instance simple).
 #
 # Le pipeline Bloc 3 (Airflow, extraction, ingestion) tourne EN LOCAL
 # sur le poste candidat (voir README, section "Mode d'execution
 # Airflow") — pas sur cette instance. Kafka et ClickHouse doivent donc
 # etre joignables depuis l'exterieur : ports publies sur l'IP publique
-# de l'instance, restreints par le pare-feu reseau OVHcloud a l'IP du
-# poste candidat (pas de VPN complet : disproportionne pour une demo de
+# de l'instance, restreints par le pare-feu reseau a l'IP du poste
+# candidat (pas de VPN complet : disproportionne pour une demo de
 # certification limitee dans le temps).
 #
 # Pas de TLS entre le pipeline local et ClickHouse (port HTTP 8123, pas

@@ -49,7 +49,7 @@ transformation a toujours lieu après coup, en SQL, dans la base de
 destination — jamais en amont du chargement.
 
 Toutes les sources convergent vers un **data lake unique et centralisé**
-(Object Storage OVHcloud, partagé entre les deux flux) — la télémétrie
+(Object Storage, partagé entre les deux flux) — la télémétrie
 y est déposée au format **Parquet**, adapté aux séries temporelles.
 
 > [!NOTE]
@@ -68,10 +68,10 @@ y est déposée au format **Parquet**, adapté aux séries temporelles.
 > Le pipeline est orchestré de bout en bout, sans intervention manuelle, **pour les deux flux** — pas seulement le batch. Le flux batch dispose d'une **reprise automatique sur erreur** via Airflow (relance idempotente) et déclenche une **alerte opérationnelle immédiate** en cas d'échec (deux DAG : pipeline quotidien et contrôle périodique "capteur silencieux", voir `orchestration/`). Le flux temps réel a sa propre résilience, hors Airflow : `mqtt_to_kafka.py` isole chaque message défaillant sans interrompre la boucle, et `kafka_to_clickhouse.py` (`try_flush`) journalise une alerte opérationnelle et retente le lot au cycle suivant si le chargement échoue, sans jamais faire planter le processus. Dans les deux cas, l'alerte opérationnelle reste distincte de l'alerte précoce métier (qui signale une panne probable, pas un problème du pipeline).
 
 > [!WARNING]
-> Airflow n'est pas officiellement supporté sur Windows natif (nécessite WSL2 ou un conteneur Linux pour tourner réellement — [issue #10388](https://github.com/apache/airflow/issues/10388)). Sans impact pour la cible de déploiement (serveurs Linux OVHcloud), mais à savoir pour tout développement/test local du DAG sur ce poste : `orchestration/dag_pipeline_bloc3.py` a été validé via `DagBag` (parsing, dépendances de tâches, `default_args`), pas via un scheduler Airflow réellement démarré.
+> Airflow n'est pas officiellement supporté sur Windows natif (nécessite WSL2 ou un conteneur Linux pour tourner réellement — [issue #10388](https://github.com/apache/airflow/issues/10388)). Sans impact pour la cible de déploiement (serveurs Linux du cloud souverain), mais à savoir pour tout développement/test local du DAG sur ce poste : `orchestration/dag_pipeline_bloc3.py` a été validé via `DagBag` (parsing, dépendances de tâches, `default_args`), pas via un scheduler Airflow réellement démarré.
 
 > [!NOTE]
-> Le volet RGPD du diagramme (page 2) a deux parties distinctes, reliées par un trait en pointillé (pas une étape du flux de données) : la **pseudonymisation** (`privacy/pseudonymisation.py`, code applicatif, prêt) et le **journal d'accès & traitements** (traçabilité des accès humains à `dim_operateur`) — ce second volet est une configuration d'infrastructure (extension `pgaudit` sur PostgreSQL), pas du code, et sera activée **au moment du provisionnement OVHcloud**, pas avant.
+> Le volet RGPD du diagramme (page 2) a deux parties distinctes, reliées par un trait en pointillé (pas une étape du flux de données) : la **pseudonymisation** (`privacy/pseudonymisation.py`, code applicatif, prêt) et le **journal d'accès & traitements** (traçabilité des accès humains à `dim_operateur`) — ce second volet est une configuration d'infrastructure (extension `pgaudit` sur PostgreSQL), pas du code, et sera activée **au moment du provisionnement de PostgreSQL managé**, pas avant.
 
 > [!NOTE]
 > `dashboard/grafana_dashboard.json` et `grafana_alert_rules.yaml` référencent la datasource ClickHouse par un UID fixe (`automeca-clickhouse`) — pas une variable de template, qui ne se résout pas lors d'un provisioning par fichier. Au déploiement, la datasource ClickHouse doit être provisionnée avec ce même UID (ou le JSON/YAML ajusté après import).
@@ -137,15 +137,15 @@ Bloc3-AutoMeca-Maintenance-Predictive-IoT-Pipeline-Data/
 
 ## 🛠️ Stack technique
 
-- 📡 **Kafka** (auto-hébergé, petite instance Compute OVHcloud) — broker d'ingestion (MQTT → Kafka)
-- ⚡ **ClickHouse** (auto-hébergé, petite instance Compute OVHcloud) — stockage de la télémétrie brute (Parquet) + vue matérialisée (RMS, tendance, alerting)
-- 🐘 **PostgreSQL managé (OVHcloud)** — staging + datamart (Bloc 2)
-- ☁️ **Object Storage (OVHcloud)** — data lake centralisé unique, partagé entre les deux flux
+- 📡 **Kafka** (auto-hébergé, petite instance Compute) — broker d'ingestion (MQTT → Kafka)
+- ⚡ **ClickHouse** (auto-hébergé, petite instance Compute) — stockage de la télémétrie brute (Parquet) + vue matérialisée (RMS, tendance, alerting)
+- 🐘 **PostgreSQL managé** (cloud souverain) — staging + datamart (Bloc 2)
+- ☁️ **Object Storage** (cloud souverain) — data lake centralisé unique, partagé entre les deux flux
 - 🪁 **Airflow** — orchestration de bout en bout, reprise sur erreur, alerting opérationnel
 - 📈 **Grafana** — tableau de bord de supervision + alerte précoce (RMS vibratoire, tendance de pression)
 
 > [!NOTE]
-> Kafka et ClickHouse tournent en auto-hébergé (petite instance Compute), pas via les offres managées OVHcloud — celles-ci démarrent à plusieurs centaines de dollars par mois (minimum 3 nœuds pour Kafka, HA pensée pour de la production réelle), disproportionné pour ce cas fictif de certification et incompatible avec le crédit d'essai Public Cloud (200 €, 1 mois). Cette même instance est aussi partagée avec les conteneurs du Bloc 4 (API + interface de supervision) — un seul poste de coût plutôt qu'une instance par service, et aucun Kubernetes/registre de conteneurs (inutiles à cette échelle). Détail complet du raisonnement et des tarifs dans le README du Bloc 2, section "Contraintes de coût et choix d'infrastructure OVHcloud".
+> Kafka et ClickHouse tournent en auto-hébergé (petite instance Compute), pas via des offres managées — celles-ci sont pensées pour de la haute disponibilité multi-nœud en production réelle, disproportionné pour ce cas fictif de certification. Cette même instance est aussi partagée avec les conteneurs du Bloc 4 (API + interface de supervision) — un seul poste de coût plutôt qu'une instance par service, et aucun Kubernetes/registre de conteneurs (inutiles à cette échelle). Détail complet du raisonnement dans le README du Bloc 2, section "Contraintes de coût et choix d'infrastructure". **Déploiement réel effectué** : Kafka, ClickHouse et Grafana ont été déployés avec succès sur une instance Compute et testés en conditions réelles (dashboard provisionné, datasource connectée, alerting configuré).
 
 ## 📦 Contenu
 

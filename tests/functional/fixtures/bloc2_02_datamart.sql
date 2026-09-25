@@ -1,6 +1,6 @@
 -- =====================================================================
 -- BLOC 2 — AutoMeca Systems — Couche DATAMART (star schema)
--- PostgreSQL managé (OVHcloud, région UE)
+-- PostgreSQL managé (cloud souverain, région UE)
 --
 -- Construite par transformation de la couche staging (Bloc 3 : pipeline
 -- d'ingestion & transformation). Table de faits UNIFIÉE : les 3 sources

@@ -22,8 +22,8 @@ l'idempotence des operations sous-jacentes. Un echec declenche une
 alerte operationnelle journalisee (on_failure_callback) — distincte de
 l'alerte precoce metier (RMS/tendance, Grafana). Le canal de
 notification reel (email/Slack/PagerDuty) sera configure au
-provisionnement OVHcloud (voir README) : ce fichier ne fabrique pas de
-canal factice.
+provisionnement de l'infrastructure cible (voir README) : ce fichier
+ne fabrique pas de canal factice.
 """
 from datetime import datetime, timedelta
 

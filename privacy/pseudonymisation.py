@@ -18,7 +18,7 @@ Le "Journal d'acces & traitements" (2e volet RGPD du diagramme, relie
 en pointille — pas une etape du flux de donnees) n'est pas traite ici :
 c'est une configuration d'infrastructure (extension pgaudit sur
 PostgreSQL), pas du code applicatif — a activer au moment du
-provisionnement OVHcloud (voir README).
+provisionnement de PostgreSQL manage (voir README).
 """
 import hashlib
 import hmac

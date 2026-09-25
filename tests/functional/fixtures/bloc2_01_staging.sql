@@ -1,6 +1,6 @@
 -- =====================================================================
 -- BLOC 2 — AutoMeca Systems — Couche STAGING (modèle entité-relation)
--- PostgreSQL managé (OVHcloud, région UE)
+-- PostgreSQL managé (cloud souverain, région UE)
 --
 -- Reflète fidèlement les 5 fichiers sources du dataset Microsoft Azure
 -- Predictive Maintenance, tels que déposés dans Object Storage.
