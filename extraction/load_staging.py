@@ -19,12 +19,27 @@ from common.object_storage import get_client, load_object_storage_config
 
 logger = get_logger(__name__)
 
-# Association fichier source -> (table staging, colonnes dans l'ordre du CSV)
+# Association fichier source -> (table staging, [(colonne CSV Kaggle brute,
+# colonne staging cible), ...]) — les en-tetes du CSV Kaggle brut (machineID,
+# datetime, errorID, failure) sont differentes des noms de colonnes staging
+# definis au Bloc 2 (machine_id, datetime_evt, error_id, failure_comp) ; sans
+# ce mapping explicite, la lecture levait un KeyError des la premiere ligne
+# sur un vrai fichier extrait par extract_kaggle.py (bug reel trouve lors
+# d'un audit de coherence, invisible aux tests qui mockaient des lignes deja
+# nommees a la cible).
 STAGING_TARGETS = {
-    "PdM_machines.csv": ("staging.machines", ["machine_id", "model", "age"]),
-    "PdM_errors.csv": ("staging.erreurs", ["datetime_evt", "machine_id", "error_id"]),
-    "PdM_failures.csv": ("staging.pannes", ["datetime_evt", "machine_id", "failure_comp"]),
-    "PdM_maint.csv": ("staging.maintenances", ["datetime_evt", "machine_id", "comp"]),
+    "PdM_machines.csv": ("staging.machines", [
+        ("machineID", "machine_id"), ("model", "model"), ("age", "age"),
+    ]),
+    "PdM_errors.csv": ("staging.erreurs", [
+        ("datetime", "datetime_evt"), ("machineID", "machine_id"), ("errorID", "error_id"),
+    ]),
+    "PdM_failures.csv": ("staging.pannes", [
+        ("datetime", "datetime_evt"), ("machineID", "machine_id"), ("failure", "failure_comp"),
+    ]),
+    "PdM_maint.csv": ("staging.maintenances", [
+        ("datetime", "datetime_evt"), ("machineID", "machine_id"), ("comp", "comp"),
+    ]),
 }
 
 
@@ -41,15 +56,17 @@ def load_file_to_staging(object_key: str, filename: str, conn) -> int:
     """Charge un fichier brut du data lake vers sa table staging. Retourne le nb de lignes."""
     if filename not in STAGING_TARGETS:
         raise ValueError(f"Pas de table staging associee a {filename}")
-    table, columns = STAGING_TARGETS[filename]
+    table, mapping = STAGING_TARGETS[filename]
+    colonnes_source = [source for source, _ in mapping]
+    colonnes_cible = [cible for _, cible in mapping]
     rows = _read_object_as_rows(object_key)
 
-    values = [tuple(row[col] for col in columns) for row in rows]
+    values = [tuple(row[col] for col in colonnes_source) for row in rows]
     if not values:
         logger.warning("Aucune ligne a charger pour %s", filename)
         return 0
 
-    columns_sql = ", ".join(columns)
+    columns_sql = ", ".join(colonnes_cible)
     with conn.cursor() as cur:
         psycopg2.extras.execute_values(
             cur,

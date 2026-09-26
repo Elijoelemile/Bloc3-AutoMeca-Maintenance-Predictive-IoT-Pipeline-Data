@@ -8,14 +8,19 @@ from unittest.mock import MagicMock, patch
 from extraction.load_staging import STAGING_TARGETS, load_file_to_staging
 
 
-CSV_MACHINES = "machine_id,model,age\n1,model3,18\n2,model1,5\n"
+CSV_MACHINES = "machineID,model,age\n1,model3,18\n2,model1,5\n"
 
 
 @patch("extraction.load_staging._read_object_as_rows")
 def test_load_file_to_staging_inserts_expected_columns(mock_read):
+    # Cles = vrais en-tetes du CSV Kaggle brut (machineID), PAS les noms de
+    # colonnes staging cibles (machine_id) — sans cette distinction, ce test
+    # ne peut pas detecter une regression sur le mapping source->cible (bug
+    # reel trouve lors d'un audit : STAGING_TARGETS utilisait autrefois les
+    # noms cibles pour indexer le CSV source, KeyError garanti en production).
     mock_read.return_value = [
-        {"machine_id": "1", "model": "model3", "age": "18"},
-        {"machine_id": "2", "model": "model1", "age": "5"},
+        {"machineID": "1", "model": "model3", "age": "18"},
+        {"machineID": "2", "model": "model1", "age": "5"},
     ]
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
