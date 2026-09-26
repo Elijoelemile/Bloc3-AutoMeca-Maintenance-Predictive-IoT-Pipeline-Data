@@ -80,7 +80,11 @@ def _start_clickhouse_with_retry(attempts: int = 3) -> ClickHouseContainer:
     de notre code."""
     last_exc: Exception | None = None
     for _ in range(attempts):
-        container = ClickHouseContainer("clickhouse/clickhouse-server:24")
+        # "latest", pas un tag versionne (ex. "24") : meme choix que
+        # docker-compose.yml, pour la meme raison (tags versionnes
+        # retires du Docker Hub gratuit courant 2025 — voir commentaire
+        # de ce fichier).
+        container = ClickHouseContainer("clickhouse/clickhouse-server:latest")
         try:
             container.start()
             return container
