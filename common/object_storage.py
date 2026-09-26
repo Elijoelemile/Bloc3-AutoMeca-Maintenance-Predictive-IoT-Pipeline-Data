@@ -32,10 +32,3 @@ def upload_file(local_path: str, object_key: str, config: ObjectStorageConfig | 
     logger.info("Depot data lake : %s -> s3://%s/%s", local_path, cfg.bucket, object_key)
     client.upload_file(local_path, cfg.bucket, object_key)
     logger.info("Depot reussi : %s", object_key)
-
-
-def download_file(object_key: str, local_path: str, config: ObjectStorageConfig | None = None) -> None:
-    cfg = config or load_object_storage_config()
-    client = get_client(cfg)
-    logger.info("Lecture data lake : s3://%s/%s -> %s", cfg.bucket, object_key, local_path)
-    client.download_file(cfg.bucket, object_key, local_path)
