@@ -160,6 +160,12 @@ Le pipeline lui-même (extraction, flux temps réel, orchestration Airflow) tour
 > [!NOTE]
 > Sur l'instance Compute de déploiement réel, ces mêmes ports sont exposés sur l'IP publique de l'instance (restreinte par pare-feu à l'IP du poste candidat — voir `.env.example`), pas sur `localhost`. Aucune IP ni aucun identifiant n'est publié ici : l'instance n'est allumée que pendant les fenêtres de test/démonstration, une IP fixe deviendrait vite obsolète, et publier des identifiants réels dans un dépôt public serait une vraie exposition. La démonstration en conditions réelles se fait via la vidéo (voir grille officielle des livrables).
 
+> [!NOTE]
+> **"Réseau privé" (diagramme Bloc 2, bande sécurité transverse)** : l'architecture cible isole tout le trafic Storage ↔ Bases dans un réseau interne (VPC), jamais exposé publiquement. Ce n'est pas ce qui est réellement déployé, ni pour PostgreSQL managé, ni pour Object Storage, ni pour ClickHouse : les trois sont joints via leurs points de terminaison publics respectifs. La protection réelle repose sur les identifiants (mot de passe fort) et, pour l'instance Compute hébergeant Kafka/ClickHouse, la restriction IP du pare-feu déjà décrite ci-dessus — pas sur une isolation réseau. Même compromis assumé que le VPN : mettre en place un VPC Scaleway dédié, des sous-réseaux et un point de sortie NAT aurait un coût et une complexité disproportionnés pour une démo de certification limitée dans le temps.
+
+> [!NOTE]
+> **TLS en transit (diagramme Bloc 2, bande sécurité transverse)** : à ne pas généraliser à toute l'architecture — deux cas bien distincts. **PostgreSQL managé et Object Storage** sont chiffrés en transit par défaut : ce sont des services managés Scaleway, le TLS y est géré par le Cloud lui-même (Object Storage n'est d'ailleurs joignable qu'en HTTPS), ce n'est pas un compromis qu'on a fait. **Kafka et ClickHouse auto-hébergés** sont le seul vrai écart : logiciels installés et administrés par nous dans nos propres conteneurs Docker, sans certificat configuré (ClickHouse en HTTP port 8123, pas HTTPS 8443 ; Kafka en PLAINTEXT, pas SASL_SSL — voir `docker-compose.yml` et `.env.example`). La protection en transit y repose sur la restriction IP du pare-feu plutôt que sur le chiffrement — même compromis assumé, limité à ces deux services précis.
+
 ## 🛠️ Stack technique
 
 - 📡 **Kafka** (auto-hébergé, petite instance Compute) — broker d'ingestion (MQTT → Kafka)
